@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sharp Money Tracker</title>
+<style>
+  :root{--bg:#0b0f14;--panel:#121821;--line:#1f2937;--text:#e5e7eb;--mute:#8b98a9;--accent:#22c55e;--warn:#f59e0b;--hot:#ef4444;--blue:#3b82f6}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  header{padding:20px 16px 8px;max-width:1200px;margin:auto}
+  h1{margin:0;font-size:22px}h1 span{color:var(--accent)}
+  .sub{color:var(--mute);margin-top:4px}
+  .controls{max-width:1200px;margin:12px auto;padding:12px 16px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+  .controls label{color:var(--mute);font-size:12px;display:flex;flex-direction:column;gap:4px}
+  select,input[type=range]{accent-color:var(--accent)}select{background:#0b0f14;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px}
+  .val{color:var(--text);font-weight:600}
+  .wrap{max-width:1200px;margin:auto;padding:0 16px 40px;overflow-x:auto}
+  table{width:100%;border-collapse:collapse;min-width:900px}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);text-align:left;padding:8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg)}
+  td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tr.game td{border-bottom:none}tr.gap td{padding:2px}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .bar{height:8px;background:#1f2937;border-radius:4px;overflow:hidden;width:120px}.bar i{display:block;height:100%;background:var(--blue)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;margin:1px 2px}
+  .hot{background:rgba(239,68,68,.15);color:#fca5a5}.div{background:rgba(245,158,11,.15);color:#fcd34d}.fade{background:rgba(59,130,246,.15);color:#93c5fd}
+  .pos{color:var(--accent)}.neg{color:#f87171}
+  .tag{font-size:11px;color:var(--mute);border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+  footer{max-width:1200px;margin:auto;padding:0 16px 32px;color:var(--mute);font-size:12px}
+  .empty{padding:40px;text-align:center;color:var(--mute)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Sharp <span>Money</span> Tracker</h1>
+  <div class="sub">Exchange liquidity (Kalshi) vs sportsbook consensus (DraftKings), next 48h · updated <span id="upd">…</span></div>
+</header>
+<div class="controls">
+  <label>Sport <select id="sport"><option value="">All</option></select></label>
+  <label>Min exchange $ on side: <span class="val" id="minv"></span><input id="min" type="range" min="0" max="500000" step="5000" value="25000"></label>
+  <label>Divergence flag (pts): <span class="val" id="divv"></span><input id="div" type="range" min="1" max="10" step="0.5" value="3"></label>
+  <label><span>&nbsp;</span><span><input type="checkbox" id="flagged"> Flagged only</span></label>
+</div>
+<div class="wrap"><table>
+  <thead><tr><th>Start</th><th>Game</th><th>Side</th><th class="num">Exchange $</th><th class="num">24h $</th><th>Money share</th><th class="num">Exch. %</th><th class="num">Book %</th><th class="num">Edge</th><th>Flags</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table><div id="empty" class="empty" hidden>No sides above the liquidity bar. Lower the threshold.</div></div>
+<footer>
+  <b>How to read it.</b> “Money share” = share of matched exchange dollars on that side. “Edge” = exchange-implied probability minus de-vigged sportsbook probability.
+  🔥 <b>Heavy money</b>: side clears your $ bar with ≥65% of the game’s exchange money. ⚠️ <b>Line gap</b>: exchange and book disagree by more than the divergence setting. 🔄 <b>Money vs price</b>: money share runs far ahead of the price (smart money piling on).
+  Data refreshes every 15 min via GitHub Actions. Demo built for an Upwork proposal; production version would add Pinnacle/Novig/ProphetX feeds and a public-bet-% source.
+</footer>
+<script>
+const $=s=>document.querySelector(s);const usd=n=>n>=1e6?`$${(n/1e6).toFixed(2)}M`:n>=1e3?`$${(n/1e3).toFixed(1)}K`:`$${n.toFixed(0)}`;
+const pct=p=>p==null?'—':(p*100).toFixed(1)+'%';
+let DATA={games:[]};
+function render(){
+  const sport=$('#sport').value,min=+$('#min').value,div=+$('#div').value/100,flaggedOnly=$('#flagged').checked;
+  $('#minv').textContent=usd(min);$('#divv').textContent=(div*100).toFixed(1);
+  let html='';let shown=0;
+  for(const g of DATA.games){
+    if(sport&&g.sport!==sport)continue;
+    const rows=g.sides.map(s=>{
+      const edge=s.bookProb==null?null:s.exProb-s.bookProb;
+      const flags=[];
+      if(s.volTotal>=min&&s.moneyShare>=.65)flags.push('<span class="pill hot">🔥 Heavy money</span>');
+      if(edge!=null&&Math.abs(edge)>=div)flags.push('<span class="pill div">⚠️ Line gap</span>');
+      if(s.moneyShare-s.exProb>=.2&&s.volTotal>=min)flags.push('<span class="pill fade">🔄 Money vs price</span>');
+      return {s,edge,flags};
+    }).filter(r=>r.s.volTotal>=min&&(!flaggedOnly||r.flags.length));
+    if(!rows.length)continue;shown+=rows.length;
+    const t=new Date(g.start);const when=t.toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'});
+    const match=g.sides.map(s=>s.team).join(' vs ');
+    rows.forEach((r,i)=>{html+=`<tr class="game"><td>${i?'':when}</td><td>${i?'':`<span class="tag">${g.sport}</span> ${match}`}</td><td><b>${r.s.team}</b></td>
+      <td class="num">${usd(r.s.volTotal)}</td><td class="num">${usd(r.s.vol24)}</td>
+      <td><div class="bar"><i style="width:${(r.s.moneyShare*100).toFixed(0)}%"></i></div><small>${(r.s.moneyShare*100).toFixed(0)}%</small></td>
+      <td class="num">${pct(r.s.exProb)}</td><td class="num">${pct(r.s.bookProb)}${r.s.bookML?` <small style="color:var(--mute)">(${r.s.bookML})</small>`:''}</td>
+      <td class="num ${r.edge>0?'pos':r.edge<0?'neg':''}">${r.edge==null?'—':(r.edge>0?'+':'')+(r.edge*100).toFixed(1)}</td><td>${r.flags.join('')}</td></tr>`});
+    html+='<tr class="gap"><td colspan="10" style="border-bottom:1px solid var(--line)"></td></tr>';
+  }
+  $('#rows').innerHTML=html;$('#empty').hidden=!!shown;
+}
+fetch('data.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{DATA=d;$('#upd').textContent=new Date(d.updated).toLocaleString();
+  [...new Set(d.games.map(g=>g.sport))].forEach(s=>$('#sport').insertAdjacentHTML('beforeend',`<option>${s}</option>`));render();});
+['#sport','#min','#div','#flagged'].forEach(s=>$(s).addEventListener('input',render));
+</script>
+</body>
+</html>
