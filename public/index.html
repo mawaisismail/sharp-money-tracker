@@ -4,84 +4,133 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sharp Money Tracker</title>
+<meta name="description" content="Where the sharp money is tonight: exchange liquidity vs sportsbook lines, with liquidity thresholds and divergence flags." />
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.10"></script>
+<script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','system-ui'],mono:['"JetBrains Mono"','ui-monospace']}}}}</script>
 <style>
-  :root{--bg:#0b0f14;--panel:#121821;--line:#1f2937;--text:#e5e7eb;--mute:#8b98a9;--accent:#22c55e;--warn:#f59e0b;--hot:#ef4444;--blue:#3b82f6}
-  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-  header{padding:20px 16px 8px;max-width:1200px;margin:auto}
-  h1{margin:0;font-size:22px}h1 span{color:var(--accent)}
-  .sub{color:var(--mute);margin-top:4px}
-  .controls{max-width:1200px;margin:12px auto;padding:12px 16px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px}
-  .controls label{color:var(--mute);font-size:12px;display:flex;flex-direction:column;gap:4px}
-  select,input[type=range]{accent-color:var(--accent)}select{background:#0b0f14;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px}
-  .val{color:var(--text);font-weight:600}
-  .wrap{max-width:1200px;margin:auto;padding:0 16px 40px;overflow-x:auto}
-  table{width:100%;border-collapse:collapse;min-width:900px}
-  th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);text-align:left;padding:8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg)}
-  td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
-  tr.game td{border-bottom:none}tr.gap td{padding:2px}
-  .num{text-align:right;font-variant-numeric:tabular-nums}
-  .bar{height:8px;background:#1f2937;border-radius:4px;overflow:hidden;width:120px}.bar i{display:block;height:100%;background:var(--blue)}
-  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;margin:1px 2px}
-  .hot{background:rgba(239,68,68,.15);color:#fca5a5}.div{background:rgba(245,158,11,.15);color:#fcd34d}.fade{background:rgba(59,130,246,.15);color:#93c5fd}
-  .pos{color:var(--accent)}.neg{color:#f87171}
-  .tag{font-size:11px;color:var(--mute);border:1px solid var(--line);border-radius:4px;padding:1px 6px}
-  footer{max-width:1200px;margin:auto;padding:0 16px 32px;color:var(--mute);font-size:12px}
-  .empty{padding:40px;text-align:center;color:var(--mute)}
+body{background:#07090D}
+.panel{background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.07)}
+.num{font-family:"JetBrains Mono",ui-monospace;font-variant-numeric:tabular-nums}
+.glow{box-shadow:0 0 0 1px rgba(34,197,94,.25),0 10px 30px -10px rgba(34,197,94,.35)}
+.fade{animation:f .35s ease both}@keyframes f{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.pulse{animation:p 1.6s infinite}@keyframes p{50%{opacity:.35}}
+input[type=range]{accent-color:#22c55e}
+.drawer{transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:8px}
+[hidden]{display:none!important}
 </style>
 </head>
-<body>
-<header>
-  <h1>Sharp <span>Money</span> Tracker</h1>
-  <div class="sub">Exchange liquidity (Kalshi) vs sportsbook consensus (DraftKings), next 48h · updated <span id="upd">…</span></div>
+<body class="text-zinc-100 font-sans antialiased min-h-screen">
+<div class="text-center text-xs py-2 px-4 bg-amber-400/10 border-b border-amber-400/20 text-amber-200"><b>Demo preview</b>: a quick prototype built to show the concept with real data, for illustration only. The final product's UI/UX will be more refined and match your site's design.</div>
+
+<header class="border-b border-white/5 sticky top-0 z-20 backdrop-blur bg-[#07090D]/80">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-4">
+    <div class="flex items-center gap-2.5"><span class="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-400/30 grid place-items-center"><i data-lucide="activity" class="w-4 h-4 text-emerald-400"></i></span><div><div class="font-extrabold tracking-tight leading-none">Sharp Money</div><div class="text-[11px] text-zinc-500 mt-0.5">Exchange liquidity vs sportsbook lines</div></div></div>
+    <div class="flex-1"></div>
+    <div class="hidden sm:flex items-center gap-2 text-xs text-zinc-400"><span class="w-2 h-2 rounded-full bg-emerald-400 pulse"></span>Live · updated <span id="upd" class="num text-zinc-200">…</span></div>
+  </div>
 </header>
-<div class="controls">
-  <label>Sport <select id="sport"><option value="">All</option></select></label>
-  <label>Min exchange $ on side: <span class="val" id="minv"></span><input id="min" type="range" min="0" max="500000" step="5000" value="25000"></label>
-  <label>Divergence flag (pts): <span class="val" id="divv"></span><input id="div" type="range" min="1" max="10" step="0.5" value="3"></label>
-  <label><span>&nbsp;</span><span><input type="checkbox" id="flagged"> Flagged only</span></label>
-</div>
-<div class="wrap"><table>
-  <thead><tr><th>Start</th><th>Game</th><th>Side</th><th class="num">Exchange $</th><th class="num">24h $</th><th>Money share</th><th class="num">Exch. %</th><th class="num">Book %</th><th class="num">Edge</th><th>Flags</th></tr></thead>
-  <tbody id="rows"></tbody>
-</table><div id="empty" class="empty" hidden>No sides above the liquidity bar. Lower the threshold.</div></div>
-<footer>
-  <b>How to read it.</b> “Money share” = share of matched exchange dollars on that side. “Edge” = exchange-implied probability minus de-vigged sportsbook probability.
-  🔥 <b>Heavy money</b>: side clears your $ bar with ≥65% of the game’s exchange money. ⚠️ <b>Line gap</b>: exchange and book disagree by more than the divergence setting. 🔄 <b>Money vs price</b>: money share runs far ahead of the price (smart money piling on).
-  Data refreshes every 15 min via GitHub Actions. Demo built for an Upwork proposal; production version would add Pinnacle/Novig/ProphetX feeds and a public-bet-% source.
-</footer>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+  <!-- KPIs -->
+  <section id="kpis" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></section>
+
+  <!-- Top plays -->
+  <section>
+    <div class="flex items-end justify-between mb-3"><div><h2 class="font-bold text-lg">Top sharp plays tonight</h2><p class="text-xs text-zinc-500">Highest exchange money that clears your liquidity bar, ranked by money share and edge</p></div></div>
+    <div id="top" class="grid md:grid-cols-3 gap-3"></div>
+  </section>
+
+  <!-- Controls -->
+  <section class="panel rounded-2xl p-4 flex flex-wrap items-end gap-x-6 gap-y-4">
+    <div><div class="text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">Sport</div><div id="sports" class="flex flex-wrap gap-1.5"></div></div>
+    <label class="min-w-[220px] flex-1"><div class="flex justify-between text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5"><span>Min exchange $ on side</span><span id="minv" class="num text-zinc-200 normal-case"></span></div><input id="min" type="range" min="0" max="400000" step="5000" value="25000" class="w-full"></label>
+    <label class="min-w-[180px]"><div class="flex justify-between text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5"><span>Line-gap flag</span><span id="divv" class="num text-zinc-200 normal-case"></span></div><input id="div" type="range" min="1" max="10" step="0.5" value="3" class="w-full"></label>
+    <label class="flex items-center gap-2 text-sm cursor-pointer select-none"><input id="flagged" type="checkbox" class="w-4 h-4 accent-emerald-500">Flagged only</label>
+    <div class="relative"><i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-zinc-500"></i><input id="q" placeholder="Search team" class="pl-9 pr-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm outline-none focus:ring-2 ring-emerald-500/40 w-44"></div>
+  </section>
+
+  <!-- Table -->
+  <section class="panel rounded-2xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm min-w-[920px]">
+        <thead class="text-[11px] uppercase tracking-wider text-zinc-500 border-b border-white/5"><tr>
+          <th class="text-left font-medium px-4 py-3">Game</th><th class="text-left font-medium px-3 py-3">Side</th><th class="text-right font-medium px-3 py-3">Exchange $</th><th class="text-left font-medium px-3 py-3 w-[180px]">Money split</th><th class="text-right font-medium px-3 py-3">Exch %</th><th class="text-right font-medium px-3 py-3">Book %</th><th class="text-right font-medium px-3 py-3">Edge</th><th class="text-left font-medium px-4 py-3">Signals</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="empty" hidden class="p-10 text-center text-zinc-500 text-sm">No sides clear this liquidity bar. Try lowering it.</div>
+  </section>
+
+  <section class="grid md:grid-cols-3 gap-3 text-sm">
+    <div class="panel rounded-2xl p-4"><div class="flex items-center gap-2 font-semibold"><span class="text-[11px] px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-300">Heavy money</span></div><p class="text-zinc-400 mt-2">One side clears your $ bar and holds 65%+ of the game's exchange money.</p></div>
+    <div class="panel rounded-2xl p-4"><div class="flex items-center gap-2 font-semibold"><span class="text-[11px] px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300">Line gap</span></div><p class="text-zinc-400 mt-2">Exchange-implied probability and the de-vigged sportsbook line disagree by more than your threshold.</p></div>
+    <div class="panel rounded-2xl p-4"><div class="flex items-center gap-2 font-semibold"><span class="text-[11px] px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-300">Money vs price</span></div><p class="text-zinc-400 mt-2">Money share runs 20+ pts ahead of the price, a classic sign of sharps piling onto one side.</p></div>
+  </section>
+
+  <footer class="text-xs text-zinc-500 pb-10 leading-relaxed">Sources in this demo: Kalshi (exchange) and DraftKings via ESPN (book), refreshed every 15 minutes. Production adds Novig and ProphetX, a licensed Pinnacle feed and public bet-% splits, stores snapshots in Supabase for line-movement history, and renders inside your existing site. Demo prototype by Muhammad Awais, for illustration only.</footer>
+</main>
+
+<!-- Drawer -->
+<div id="shade" hidden class="fixed inset-0 bg-black/60 z-30" onclick="closeD()"></div>
+<aside id="drawer" class="drawer fixed top-0 right-0 h-full w-full max-w-md z-40 bg-[#0B0E14] border-l border-white/10 translate-x-full overflow-y-auto"></aside>
+
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 <script>
-const $=s=>document.querySelector(s);const usd=n=>n>=1e6?`$${(n/1e6).toFixed(2)}M`:n>=1e3?`$${(n/1e3).toFixed(1)}K`:`$${n.toFixed(0)}`;
+const $=s=>document.querySelector(s);const icons=()=>window.lucide&&lucide.createIcons();
+const usd=n=>n>=1e6?`$${(n/1e6).toFixed(2)}M`:n>=1e3?`$${(n/1e3).toFixed(1)}K`:`$${Math.round(n)}`;
 const pct=p=>p==null?'—':(p*100).toFixed(1)+'%';
-let DATA={games:[]};
+const S={sport:'All',min:25000,div:.03,flagged:false,q:''};let D={games:[]};
+const flagsFor=(s)=>{const e=s.bookProb==null?null:s.exProb-s.bookProb;const f=[];if(s.volTotal>=S.min&&s.moneyShare>=.65)f.push(['Heavy money','rose']);if(e!=null&&Math.abs(e)>=S.div)f.push(['Line gap','amber']);if(s.volTotal>=S.min&&s.moneyShare-s.exProb>=.2)f.push(['Money vs price','sky']);return{e,f}};
+const when=iso=>new Date(iso).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'});
+function chip(t,c){return `<span class="text-[11px] px-2 py-0.5 rounded-md bg-${c}-500/15 text-${c}-300 whitespace-nowrap">${t}</span>`}
 function render(){
-  const sport=$('#sport').value,min=+$('#min').value,div=+$('#div').value/100,flaggedOnly=$('#flagged').checked;
-  $('#minv').textContent=usd(min);$('#divv').textContent=(div*100).toFixed(1);
-  let html='';let shown=0;
-  for(const g of DATA.games){
-    if(sport&&g.sport!==sport)continue;
-    const rows=g.sides.map(s=>{
-      const edge=s.bookProb==null?null:s.exProb-s.bookProb;
-      const flags=[];
-      if(s.volTotal>=min&&s.moneyShare>=.65)flags.push('<span class="pill hot">🔥 Heavy money</span>');
-      if(edge!=null&&Math.abs(edge)>=div)flags.push('<span class="pill div">⚠️ Line gap</span>');
-      if(s.moneyShare-s.exProb>=.2&&s.volTotal>=min)flags.push('<span class="pill fade">🔄 Money vs price</span>');
-      return {s,edge,flags};
-    }).filter(r=>r.s.volTotal>=min&&(!flaggedOnly||r.flags.length));
-    if(!rows.length)continue;shown+=rows.length;
-    const t=new Date(g.start);const when=t.toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'});
-    const match=g.sides.map(s=>s.team).join(' vs ');
-    rows.forEach((r,i)=>{html+=`<tr class="game"><td>${i?'':when}</td><td>${i?'':`<span class="tag">${g.sport}</span> ${match}`}</td><td><b>${r.s.team}</b></td>
-      <td class="num">${usd(r.s.volTotal)}</td><td class="num">${usd(r.s.vol24)}</td>
-      <td><div class="bar"><i style="width:${(r.s.moneyShare*100).toFixed(0)}%"></i></div><small>${(r.s.moneyShare*100).toFixed(0)}%</small></td>
-      <td class="num">${pct(r.s.exProb)}</td><td class="num">${pct(r.s.bookProb)}${r.s.bookML?` <small style="color:var(--mute)">(${r.s.bookML})</small>`:''}</td>
-      <td class="num ${r.edge>0?'pos':r.edge<0?'neg':''}">${r.edge==null?'—':(r.edge>0?'+':'')+(r.edge*100).toFixed(1)}</td><td>${r.flags.join('')}</td></tr>`});
-    html+='<tr class="gap"><td colspan="10" style="border-bottom:1px solid var(--line)"></td></tr>';
-  }
-  $('#rows').innerHTML=html;$('#empty').hidden=!!shown;
-}
-fetch('data.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{DATA=d;$('#upd').textContent=new Date(d.updated).toLocaleString();
-  [...new Set(d.games.map(g=>g.sport))].forEach(s=>$('#sport').insertAdjacentHTML('beforeend',`<option>${s}</option>`));render();});
-['#sport','#min','#div','#flagged'].forEach(s=>$(s).addEventListener('input',render));
+  $("#minv").textContent=usd(S.min);$("#divv").textContent=(S.div*100).toFixed(1)+' pts';
+  const games=D.games.filter(g=>(S.sport==='All'||g.sport===S.sport)&&(!S.q||g.sides.some(s=>s.team.toLowerCase().includes(S.q))));
+  // KPIs
+  const sides=games.flatMap(g=>g.sides.map(s=>({...s,g,...flagsFor(s)})));const total=sides.reduce((a,s)=>a+s.volTotal,0);const flagged=sides.filter(s=>s.f.length);const big=[...sides].sort((a,b)=>b.volTotal-a.volTotal)[0];
+  $("#kpis").innerHTML=[["Games tracked",games.length,"calendar"],["Exchange money tracked",usd(total),"wallet"],["Flagged sides",flagged.length,"flag"],["Biggest position",big?`${big.team} ${usd(big.volTotal)}`:'—',"trending-up"]].map(([l,v,i])=>`<div class="panel rounded-2xl p-4 fade"><div class="flex items-center gap-2 text-xs text-zinc-500"><i data-lucide="${i}" class="w-3.5 h-3.5"></i>${l}</div><div class="num text-xl sm:text-2xl font-semibold mt-1.5 truncate">${v}</div></div>`).join('');
+  // top plays
+  const top=flagged.filter(s=>s.volTotal>=S.min).sort((a,b)=>(b.moneyShare+Math.abs(b.e||0))-(a.moneyShare+Math.abs(a.e||0))).slice(0,3);
+  $("#top").innerHTML=top.length?top.map((s,i)=>`<button onclick='openD("${s.g.ticker}")' class="text-left panel rounded-2xl p-4 hover:border-emerald-400/30 transition ${i==0?'glow':''} fade">
+    <div class="flex items-center justify-between"><span class="text-[11px] px-2 py-0.5 rounded-md bg-white/5 text-zinc-400">${s.g.sport} · ${when(s.g.start)}</span>${i==0?'<span class="text-[11px] text-emerald-300 flex items-center gap-1"><i data-lucide="zap" class="w-3 h-3"></i>Top signal</span>':''}</div>
+    <div class="mt-3 font-semibold">${s.team}</div><div class="text-xs text-zinc-500">${s.g.sides.map(x=>x.team).join(' vs ')}</div>
+    <div class="mt-3 flex items-end justify-between"><div><div class="num text-2xl font-semibold text-emerald-300">${(s.moneyShare*100).toFixed(0)}%</div><div class="text-[11px] text-zinc-500">of exchange money · ${usd(s.volTotal)}</div></div><div class="text-right"><div class="num text-sm ${s.e>0?'text-emerald-300':'text-rose-300'}">${s.e==null?'—':(s.e>0?'+':'')+(s.e*100).toFixed(1)+' pts'}</div><div class="text-[11px] text-zinc-500">edge vs book</div></div></div>
+    <div class="mt-3 flex flex-wrap gap-1">${s.f.map(([t,c])=>chip(t,c)).join('')}</div></button>`).join(''):`<div class="panel rounded-2xl p-6 text-sm text-zinc-500 md:col-span-3">No flagged plays at this threshold.</div>`;
+  // table
+  let html='',shown=0;
+  for(const g of games){
+    const rows=g.sides.map(s=>({s,...flagsFor(s)})).filter(r=>r.s.volTotal>=S.min&&(!S.flagged||r.f.length));if(!rows.length)continue;shown+=rows.length;
+    rows.forEach((r,i)=>{const s=r.s;html+=`<tr onclick='openD("${g.ticker}")' class="cursor-pointer hover:bg-white/[.03] ${i==rows.length-1?'border-b border-white/5':''}">
+      <td class="px-4 py-3 align-top">${i?'':`<div class="font-medium">${g.sides.map(x=>x.team).join(' <span class="text-zinc-600">vs</span> ')}</div><div class="text-[11px] text-zinc-500 mt-0.5">${g.sport} · ${when(g.start)}${g.spread?' · '+g.spread:''}</div>`}</td>
+      <td class="px-3 py-3 font-semibold">${s.team}</td>
+      <td class="px-3 py-3 text-right num">${usd(s.volTotal)}<div class="text-[11px] text-zinc-500">${usd(s.vol24)} 24h</div></td>
+      <td class="px-3 py-3"><div class="h-2 rounded-full bg-white/5 overflow-hidden"><div class="h-full rounded-full ${s.moneyShare>=.65?'bg-gradient-to-r from-emerald-500 to-emerald-300':'bg-zinc-500'}" style="width:${(s.moneyShare*100).toFixed(0)}%"></div></div><div class="num text-[11px] text-zinc-400 mt-1">${(s.moneyShare*100).toFixed(0)}%</div></td>
+      <td class="px-3 py-3 text-right num">${pct(s.exProb)}</td>
+      <td class="px-3 py-3 text-right num">${pct(s.bookProb)}${s.bookML?`<div class="text-[11px] text-zinc-500">${s.bookML}</div>`:''}</td>
+      <td class="px-3 py-3 text-right num ${r.e>0?'text-emerald-300':r.e<0?'text-rose-300':''}">${r.e==null?'—':(r.e>0?'+':'')+(r.e*100).toFixed(1)}</td>
+      <td class="px-4 py-3"><div class="flex flex-wrap gap-1">${r.f.map(([t,c])=>chip(t,c)).join('')}</div></td></tr>`})}
+  $("#rows").innerHTML=html;$("#empty").hidden=!!shown;icons()}
+function openD(t){const g=D.games.find(x=>x.ticker===t);if(!g)return;const tot=g.sides.reduce((a,s)=>a+s.volTotal,0);
+  $("#drawer").innerHTML=`<div class="p-5 border-b border-white/5 flex items-start justify-between"><div><div class="text-xs text-zinc-500">${g.sport} · ${when(g.start)}</div><div class="text-lg font-bold mt-1">${g.sides.map(s=>s.team).join(' vs ')}</div></div><button onclick="closeD()" class="text-zinc-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+  <div class="p-5 space-y-5"><div class="panel rounded-2xl p-4"><div class="text-xs text-zinc-500">Total exchange money</div><div class="num text-2xl font-semibold mt-1">${usd(tot)}</div>
+   <div class="mt-3 h-3 rounded-full overflow-hidden flex">${g.sides.map((s,i)=>`<div style="width:${s.moneyShare*100}%" class="${i?'bg-sky-400':'bg-emerald-400'}"></div>`).join('')}</div>
+   <div class="mt-2 flex justify-between text-xs">${g.sides.map((s,i)=>`<span class="${i?'text-sky-300':'text-emerald-300'}">${s.team} ${(s.moneyShare*100).toFixed(0)}%</span>`).join('')}</div></div>
+  ${g.sides.map((s,i)=>{const{e,f}=flagsFor(s);return `<div class="panel rounded-2xl p-4"><div class="flex justify-between items-center"><div class="font-semibold">${s.team}</div><div class="flex gap-1">${f.map(([t,c])=>chip(t,c)).join('')}</div></div>
+   <div class="mt-3 space-y-2 text-xs">${[["Exchange implied",s.exProb,'emerald'],["Sportsbook (de-vigged)",s.bookProb,'zinc']].map(([l,v,c])=>`<div><div class="flex justify-between text-zinc-400"><span>${l}</span><span class="num text-zinc-200">${pct(v)}</span></div><div class="h-1.5 rounded-full bg-white/5 mt-1"><div class="h-full rounded-full bg-${c}-400" style="width:${(v||0)*100}%"></div></div></div>`).join('')}</div>
+   <div class="grid grid-cols-3 gap-2 mt-4 text-center">${[["Matched $",usd(s.volTotal)],["24h $",usd(s.vol24)],["Open int.",usd(s.oi)]].map(([l,v])=>`<div class="rounded-xl bg-white/[.03] p-2"><div class="num text-sm">${v}</div><div class="text-[10px] text-zinc-500">${l}</div></div>`).join('')}</div>
+   <p class="text-xs text-zinc-400 mt-3">${e==null?'No sportsbook line matched for this side yet.':`Exchange prices ${s.team} ${Math.abs(e*100).toFixed(1)} pts ${e>0?'higher':'lower'} than the book${s.moneyShare>=.65?', with most of the game\'s money on this side.':'.'}`}</p></div>`}).join('')}
+  <div class="text-[11px] text-zinc-500">Production adds a line-movement chart from stored snapshots (Supabase), plus Novig, ProphetX, Pinnacle and public bet % side by side.</div></div>`;
+  $("#shade").hidden=false;$("#drawer").style.transform='translateX(0)';icons()}
+function closeD(){$("#shade").hidden=true;$("#drawer").style.transform='translateX(100%)'}
+fetch('data.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{D=d;$("#upd").textContent=new Date(d.updated).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+  const sp=['All',...new Set(d.games.map(g=>g.sport))];$("#sports").innerHTML=sp.map(s=>`<button data-s="${s}" class="px-3 py-1.5 rounded-lg text-xs font-medium ${s==='All'?'bg-white text-black':'bg-white/5 text-zinc-300 hover:bg-white/10'}">${s}</button>`).join('');
+  $("#sports").onclick=e=>{const b=e.target.closest('button');if(!b)return;S.sport=b.dataset.s;[...$("#sports").children].forEach(x=>x.className=`px-3 py-1.5 rounded-lg text-xs font-medium ${x===b?'bg-white text-black':'bg-white/5 text-zinc-300 hover:bg-white/10'}`);render()};render()});
+$("#min").oninput=e=>{S.min=+e.target.value;render()};$("#div").oninput=e=>{S.div=+e.target.value/100;render()};$("#flagged").onchange=e=>{S.flagged=e.target.checked;render()};$("#q").oninput=e=>{S.q=e.target.value.toLowerCase();render()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeD()});icons();
 </script>
 </body>
 </html>
